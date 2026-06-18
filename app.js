@@ -11,9 +11,49 @@ const $ = (id) => document.getElementById(id);
 const ui = {
     connectBtn: $("connectBtn"), disconnectBtn: $("disconnectBtn"), connStatus: $("connStatus"),
     ssid: $("ssid"), pw: $("pw"), pwToggle: $("pwToggle"), server: $("server"), sendBtn: $("sendBtn"),
+    savePw: $("savePw"),
     steps: $("steps"), okBox: $("okBox"), errBox: $("errBox"), logbox: $("logbox"),
     unsupported: $("unsupported"),
 };
+
+// ── 입력값 기억 (localStorage) ───────────────────────────────────────────────
+// SSID·서버는 항상 저장. 비밀번호는 "이 기기에 저장" 체크 시에만 저장(평문).
+const LS = { ssid: "rp.ssid", server: "rp.server", pw: "rp.pw", savePw: "rp.savePw" };
+
+function loadSaved()
+{
+    try
+    {
+        const s = localStorage.getItem(LS.ssid); if (s !== null) ui.ssid.value = s;
+        const sv = localStorage.getItem(LS.server); if (sv !== null) ui.server.value = sv;
+        if (localStorage.getItem(LS.savePw) === "1")
+        {
+            ui.savePw.checked = true;
+            const p = localStorage.getItem(LS.pw); if (p !== null) ui.pw.value = p;
+        }
+    }
+    catch { /* localStorage 불가 환경 무시 */ }
+}
+
+function persist()
+{
+    try
+    {
+        localStorage.setItem(LS.ssid, ui.ssid.value);
+        localStorage.setItem(LS.server, ui.server.value);
+        if (ui.savePw.checked)
+        {
+            localStorage.setItem(LS.savePw, "1");
+            localStorage.setItem(LS.pw, ui.pw.value);
+        }
+        else
+        {
+            localStorage.setItem(LS.savePw, "0");
+            localStorage.removeItem(LS.pw);
+        }
+    }
+    catch { /* 저장 실패 무시 */ }
+}
 
 // ── 상태 ────────────────────────────────────────────────────────────────────
 let device = null;
@@ -59,7 +99,7 @@ function clearBoxes()
 function setFormEnabled(on)
 {
     ui.ssid.disabled = !on; ui.pw.disabled = !on; ui.pwToggle.disabled = !on;
-    ui.server.disabled = !on; ui.sendBtn.disabled = !on;
+    ui.server.disabled = !on; ui.sendBtn.disabled = !on; ui.savePw.disabled = !on;
 }
 
 // ── 연결 ────────────────────────────────────────────────────────────────────
@@ -244,6 +284,14 @@ function init()
         ui.pw.type = show ? "text" : "password";
         ui.pwToggle.textContent = show ? "숨김" : "표시";
     });
+
+    // 입력값 기억 — 저장된 값 복원 + 변경 시 저장.
+    loadSaved();
+    ui.ssid.addEventListener("input", persist);
+    ui.server.addEventListener("input", persist);
+    ui.pw.addEventListener("input", persist);
+    ui.savePw.addEventListener("change", persist);
+
     setStep("idle");
 }
 
