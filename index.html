@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Radar 장비 프로비저닝</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Apple SD Gothic Neo", "Malgun Gothic", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: #1f2937; line-height: 1.55; background: #f6f5f1;
+    max-width: 640px; margin: 0 auto; padding: 24px 18px 48px;
+  }
+  h1 { font-size: 22px; color: #1e3a8a; margin: 0 0 4px; }
+  .sub { color: #6b7280; font-size: 13px; margin-bottom: 20px; }
+  .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px 18px; margin-bottom: 16px; }
+  .card h2 { font-size: 14px; margin: 0 0 12px; color: #1e40af; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 10px 0 4px; }
+  input[type=text], input[type=password] {
+    width: 100%; padding: 9px 11px; font-size: 14px; border: 1px solid #d1d5db;
+    border-radius: 8px; background: #fff;
+  }
+  input:disabled { background: #f3f4f6; color: #9ca3af; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row input { flex: 1; }
+  button {
+    font: inherit; font-weight: 600; cursor: pointer; border-radius: 8px;
+    border: 1px solid transparent; padding: 9px 16px; font-size: 14px;
+  }
+  button.primary { background: #1d4ed8; color: #fff; }
+  button.primary:hover { background: #1e40af; }
+  button.ghost { background: #fff; color: #374151; border-color: #d1d5db; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .status { font-size: 13px; margin-top: 8px; }
+  .muted { color: #6b7280; }
+  .toggle { font-size: 12px; color: #1d4ed8; background: none; border: none; padding: 4px 6px; }
+  .steps { list-style: none; padding: 0; margin: 8px 0 0; font-size: 13px; }
+  .steps li { padding: 4px 0 4px 24px; position: relative; color: #9ca3af; }
+  .steps li.done { color: #111827; }
+  .steps li.active { color: #1d4ed8; font-weight: 600; }
+  .steps li::before { content: "○"; position: absolute; left: 4px; }
+  .steps li.done::before { content: "●"; color: #22c55e; }
+  .steps li.active::before { content: "◑"; color: #1d4ed8; }
+  .ok { color: #065f46; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 10px 12px; font-size: 14px; margin-top: 10px; }
+  .err { color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 12px; font-size: 14px; margin-top: 10px; }
+  .hidden { display: none; }
+  details.log { margin-top: 8px; }
+  details.log summary { font-size: 12px; color: #6b7280; cursor: pointer; }
+  pre.logbox { background: #0f172a; color: #e2e8f0; font-size: 12px; padding: 10px 12px;
+    border-radius: 8px; max-height: 200px; overflow:auto; margin: 8px 0 0; white-space: pre-wrap; }
+  .nb { font-size: 12px; color: #6b7280; margin-top: 6px; }
+</style>
+</head>
+<body>
+  <h1>Radar 장비 프로비저닝</h1>
+  <div class="sub">장비 근처(~10m)에서 WiFi 자격증명·서버 주소를 BLE 로 주입합니다. (Chrome 89+)</div>
+
+  <div id="unsupported" class="err hidden">
+    이 브라우저는 Web Bluetooth 를 지원하지 않습니다. <b>Chrome / Edge (89+)</b> 데스크톱·안드로이드를 사용하세요. (iOS 미지원)
+  </div>
+
+  <!-- ① 장비 연결 -->
+  <div class="card">
+    <h2>① BLE 장비 연결</h2>
+    <div class="row">
+      <button id="connectBtn" class="primary">장비 검색 및 연결 (BLE)</button>
+      <button id="disconnectBtn" class="ghost hidden">연결 해제</button>
+    </div>
+    <div id="connStatus" class="status muted">상태: 미연결</div>
+  </div>
+
+  <!-- ② 자격증명 입력 -->
+  <div class="card">
+    <h2>② 자격증명 입력</h2>
+    <label for="ssid">WiFi SSID</label>
+    <input id="ssid" type="text" maxlength="32" placeholder="WiFi 이름" autocomplete="off" disabled>
+    <label for="pw">WiFi 암호</label>
+    <div class="row">
+      <input id="pw" type="password" maxlength="63" placeholder="8자 이상" autocomplete="off" disabled>
+      <button id="pwToggle" class="toggle" type="button" disabled>표시</button>
+    </div>
+    <label for="server">서버 주소</label>
+    <input id="server" type="text" maxlength="64" placeholder="192.168.100.100" autocomplete="off" disabled>
+    <div style="margin-top:14px">
+      <button id="sendBtn" class="primary" disabled>전송</button>
+    </div>
+  </div>
+
+  <!-- ③ 진행 상태 -->
+  <div class="card">
+    <h2>③ 진행 상태</h2>
+    <ul class="steps" id="steps">
+      <li data-step="idle">초기</li>
+      <li data-step="provisioning">자격증명 전송 — WiFi 연결 시도 중</li>
+      <li data-step="provisioned">저장 완료 — 장비 재부팅</li>
+    </ul>
+    <div id="okBox" class="ok hidden"></div>
+    <div id="errBox" class="err hidden"></div>
+    <details class="log">
+      <summary>로그 보기</summary>
+      <pre class="logbox" id="logbox"></pre>
+    </details>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

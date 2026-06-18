@@ -1,0 +1,10 @@
+{
+  "name": "radar-provision",
+  "version": "1.0.0",
+  "description": "Radar(ESP32-C5) BLE WiFi provisioning static page (Web Bluetooth)",
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "license": "UNLICENSED"
+}
